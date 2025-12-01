@@ -1,0 +1,4 @@
+echo "v2.0.0" > .forcerebuild
+git add .
+git commit -m "Upgrade to v2.0.0 – API + direct SRT"
+git push
