@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: stremio-titrari-ro
+    env: node
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: RENDER_EXTERNAL_URL
+        value: https://stremio-titrari-ro.onrender.com
+    healthCheckPath: /health
+    autoDeploy: true
