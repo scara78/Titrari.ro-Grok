@@ -29,7 +29,7 @@ const axiosInstance = axios.create({
 // ====================== MANIFEST ======================
 const manifest = {
   id: 'org.titrari.scara',
-  version: '3.0.2',
+  version: '3.0.3',
   name: 'Titrari.ro',
   description: 'Subtitrări românești • titrari.ro',
   resources: ['subtitles'],
@@ -194,8 +194,10 @@ builder.defineSubtitlesHandler(async (args) => {
 // ====================== EXPRESS ======================
 const app = express();
 
-// 🔑 AICI se montează corect addonul Stremio
-serveHTTP(builder.getInterface(), { app });
+/**
+ * 🔴 IMPORTANT:
+ * RUTELE TALE ÎNAINTE DE serveHTTP
+ */
 
 // ====================== ENDPOINT SRT ======================
 app.get('/subtitle/:id.srt', async (req, res) => {
@@ -213,8 +215,12 @@ app.get('/subtitle/:id.srt', async (req, res) => {
   res.send(srt);
 });
 
-// ====================== HEALTH ======================
 app.get('/health', (_, res) => res.send('OK'));
+
+/**
+ * 🔵 ABIA ACUM montăm addonul Stremio
+ */
+serveHTTP(builder.getInterface(), { app });
 
 // ====================== START ======================
 app.listen(PORT, () => {
