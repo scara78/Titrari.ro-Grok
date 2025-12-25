@@ -29,7 +29,7 @@ const axiosInstance = axios.create({
 // ====================== MANIFEST ======================
 const manifest = {
   id: 'org.titrari.scara',
-  version: '3.0.3',
+  version: '3.0.4',
   name: 'Titrari.ro',
   description: 'Subtitrări românești • titrari.ro',
   resources: ['subtitles'],
@@ -49,7 +49,7 @@ function fixDiacritics(text) {
     .replace(/º/g, 'ș')
     .replace(/Þ/g, 'Ț')
     .replace(/þ/g, 'ț')
-    .replace(/Åž/g, 'Ș')
+    .replace(/ÅŽ/g, 'Ș')
     .replace(/ÅŸ/g, 'ș')
     .replace(/Å¢/g, 'Ț')
     .replace(/Å£/g, 'ț')
@@ -78,50 +78,62 @@ async function getSrt(subId, season = null, episode = null) {
     const res = await axiosInstance.get(
       `https://titrari.ro/get.php?id=${subId}`
     );
-
     const buffer = Buffer.from(res.data);
     let content = null;
 
     const isZip = buffer[0] === 0x50 && buffer[1] === 0x4b;
     const isRar = buffer.toString('ascii', 0, 4) === 'Rar!';
 
+    let files = [];
+
+    // ------------------ ZIP ------------------
     if (isZip) {
       const zip = new AdmZip(buffer);
-      let files = zip
-        .getEntries()
-        .filter((e) => /\.(srt|sub)$/i.test(e.name));
+      files = zip.getEntries().filter(e => /\.(srt|sub)$/i.test(e.name));
 
       if (season && episode) {
         const re = new RegExp(
           `S0*${season}E0*${episode}|${season}x0*${episode}`,
           'i'
         );
-        files = files.filter((f) => re.test(f.name));
+        const match = files.find(f => re.test(f.name));
+        if (match) files = [match];
       }
 
       if (files[0]) content = decodeBuffer(zip.readFile(files[0]));
-    } else if (isRar) {
+    }
+
+    // ------------------ RAR ------------------
+    else if (isRar) {
       const extractor = await createExtractorFromData({ data: buffer });
-      let files = extractor.getFileList().fileHeaders.filter((f) =>
-        /\.(srt|sub)$/i.test(f.name)
-      );
+      files = extractor.getFileList().fileHeaders.filter(f => /\.(srt|sub)$/i.test(f.name));
 
       if (season && episode) {
         const re = new RegExp(
           `S0*${season}E0*${episode}|${season}x0*${episode}`,
           'i'
         );
-        files = files.filter((f) => re.test(f.name));
+        const match = files.find(f => re.test(f.name));
+        if (match) files = [match];
       }
 
       if (files[0]) {
         const extracted = extractor.extract({ files: [files[0].name] });
         const file = [...extracted.files][0];
-        if (file?.extraction)
-          content = decodeBuffer(Buffer.from(file.extraction));
+        if (file?.extraction) content = decodeBuffer(Buffer.from(file.extraction));
       }
-    } else {
+    }
+
+    // ------------------ ALTCEVA (direct SRT) ------------------
+    else {
       content = decodeBuffer(buffer);
+    }
+
+    if (!content && files.length > 0) {
+      // fallback: primul .srt găsit
+      content = decodeBuffer(
+        isZip ? new AdmZip(buffer).readFile(files[0]) : Buffer.from(files[0].extraction)
+      );
     }
 
     if (content) CACHE.set(cacheKey, content);
@@ -174,19 +186,10 @@ async function searchSubtitles(imdbId, type, season, episode) {
 // ====================== SUBTITLES HANDLER ======================
 builder.defineSubtitlesHandler(async (args) => {
   const imdb = args.id.split(':')[0];
-  const season = args.extra?.season
-    ? parseInt(args.extra.season)
-    : null;
-  const episode = args.extra?.episode
-    ? parseInt(args.extra.episode)
-    : null;
+  const season = args.extra?.season ? parseInt(args.extra.season) : null;
+  const episode = args.extra?.episode ? parseInt(args.extra.episode) : null;
 
-  const subtitles = await searchSubtitles(
-    imdb,
-    args.type,
-    season,
-    episode
-  );
+  const subtitles = await searchSubtitles(imdb, args.type, season, episode);
 
   return { subtitles };
 });
@@ -195,11 +198,8 @@ builder.defineSubtitlesHandler(async (args) => {
 const app = express();
 
 /**
- * 🔴 IMPORTANT:
- * RUTELE TALE ÎNAINTE DE serveHTTP
+ * 🔴 RUTELE TALE ÎNAINTE DE serveHTTP
  */
-
-// ====================== ENDPOINT SRT ======================
 app.get('/subtitle/:id.srt', async (req, res) => {
   const { id } = req.params;
   const { season, episode } = req.query;
@@ -226,5 +226,4 @@ serveHTTP(builder.getInterface(), { app });
 app.listen(PORT, () => {
   console.log(`✅ Addon pornit: ${BASE_URL}/manifest.json`);
 });
-
 
