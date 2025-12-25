@@ -8,6 +8,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: RENDER_EXTERNAL_URL
-        value: https://titrari-ro-grok.onrender.com  # schimbă cu URL-ul tău real
+        value: https://titrari.scara.ovh # schimbă cu URL-ul tău real
     healthCheckPath: /health
     autoDeploy: true
+
